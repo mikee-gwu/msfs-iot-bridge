@@ -109,6 +109,70 @@ def _rv(req: Request, default: float = 0.0) -> float:
         return default
 
 
+def _collect_aq_requests(aq: AircraftRequests) -> list:
+    """Return all Request objects that have been lazily registered inside aq."""
+    reqs = []
+    for helper in aq.list:
+        for v in vars(helper).values():
+            if isinstance(v, Request):
+                reqs.append(v)
+    return reqs
+
+
+def _prefetch_all(sm: SimConnect, all_reqs: list, timeout: float = 0.15) -> None:
+    """Refresh all SimConnect variables with a single round-trip to MSFS.
+
+    Calls sm.request_data() for each Request sequentially from the main thread
+    (the DLL is not safe for concurrent callers).  Each call just enqueues a
+    one-shot PERIOD_ONCE message — it does NOT block waiting for a response.
+    The library's dispatch thread (CallDispatch every 2 ms) receives the
+    responses and sets req.outData; MSFS delivers all of them within one sim
+    frame (~33 ms at 30 fps).
+
+    After this returns every req.value is a non-blocking cache read for
+    SIM_CACHE_MS ms, so all packet builders run in microseconds.
+    """
+    for req in all_reqs:
+        if getattr(req, "defined", False):
+            sm.request_data(req)
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if all(req.outData is not None for req in all_reqs):
+            break
+        time.sleep(0.002)
+
+    # Stamp LastData so req.value finds a valid cache until SIM_CACHE_MS elapses.
+    now_ms = int(time.time() * 1000)
+    for req in all_reqs:
+        if req.outData is not None:
+            req.LastData = now_ms
+
+
+def _diag_check(eng_reqs: list[dict], prev: dict, t0: float) -> None:
+    """Log STARTER/COMBUSTION transitions immediately on every tick (--diag mode)."""
+    elapsed = time.monotonic() - t0
+    for i, eng in enumerate(eng_reqs, start=1):
+        for var in ("starter", "combustion"):
+            raw = eng[var].value
+            if raw is None:
+                continue
+            state = bool(int(float(raw)))
+            p = prev[i][var]
+            if p is None:
+                prev[i][var] = state
+                log.info("DIAG t+%7.3fs  ENG %d  %-12s  initial %s",
+                         elapsed, i, var.upper(), "ON" if state else "OFF")
+            elif state != p:
+                prev[i][var] = state
+                if var == "starter":
+                    event = "ENGAGED" if state else "DISENGAGED"
+                else:
+                    event = "START" if state else "STOP"
+                log.info("DIAG t+%7.3fs  ENG %d  %-12s  *** %s ***",
+                         elapsed, i, var.upper(), event)
+
+
 # ---------------------------------------------------------------------------
 # Engine indexed Request objects
 # ---------------------------------------------------------------------------
@@ -382,7 +446,7 @@ def _send(sock: socket.socket, addr: tuple, packet: dict) -> None:
 # Main broadcast loop
 # ---------------------------------------------------------------------------
 
-def run(ip: str, port: int, retry_interval: float = 5.0) -> None:
+def run(ip: str, port: int, retry_interval: float = 5.0, diag: bool = False) -> None:
     sm = None
     while sm is None:
         log.info("Connecting to SimConnect ...")
@@ -402,6 +466,12 @@ def run(ip: str, port: int, retry_interval: float = 5.0) -> None:
     aq = AircraftRequests(sm, _time=SIM_CACHE_MS)
     eng_reqs = _build_engine_requests(sm)
     log.info("SimConnect ready.")
+
+    diag_prev = {i: {"starter": None, "combustion": None}
+                 for i in range(1, NUM_ENGINES + 1)}
+    t0 = time.monotonic()
+    if diag:
+        log.info("DIAG mode ON — logging STARTER/COMBUSTION transitions and ENGINES send times.")
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -423,6 +493,18 @@ def run(ip: str, port: int, retry_interval: float = 5.0) -> None:
         "STATIC":      lambda: build_static(aq),
     }
 
+    # Warm-up: call every builder once so that all AircraftRequests variables are
+    # lazily registered with SimConnect before we start the parallel-fetch pool.
+    # This first pass is slow (~6 s) because requests are still sequential; it
+    # only happens once.
+    log.info("Registering SimConnect variables (one-time warm-up) ...")
+    for builder in builders.values():
+        builder()
+
+    # Collect all registered Request objects so we can prefetch them in parallel.
+    all_reqs = _collect_aq_requests(aq) + [r for eng in eng_reqs for r in eng.values()]
+    log.info("Registered %d SimConnect variables.", len(all_reqs))
+
     last_sent  = {ptype: 0.0 for ptype in INTERVALS}
     tick       = min(INTERVALS.values())   # main loop sleep target = 1/20 s
     total_sent = 0
@@ -430,13 +512,32 @@ def run(ip: str, port: int, retry_interval: float = 5.0) -> None:
     log.info("Running. Press Ctrl+C to stop.")
     try:
         while True:
+            # Refresh all SimConnect variables (~33 ms, one sim frame).
+            # After this returns every req.value is a non-blocking cache read.
+            _prefetch_all(sm, all_reqs)
+
             loop_start = time.monotonic()
+
+            if diag:
+                _diag_check(eng_reqs, diag_prev, t0)
 
             for ptype, interval in INTERVALS.items():
                 if loop_start - last_sent[ptype] >= interval:
-                    _send(sock, addr, builders[ptype]())
+                    if diag:
+                        _bs = time.monotonic()
+                    packet = builders[ptype]()
+                    if diag:
+                        log.info("DIAG t+%7.3fs  %-12s  build %5.1f ms",
+                                 loop_start - t0, ptype,
+                                 (time.monotonic() - _bs) * 1000)
+                    _send(sock, addr, packet)
                     last_sent[ptype] = loop_start
                     total_sent += 1
+
+            loop_ms = (time.monotonic() - loop_start) * 1000
+            if diag and loop_ms > tick * 1000 * 1.5:
+                log.warning("DIAG t+%7.3fs  LOOP OVERRUN  %.1f ms  (budget %.0f ms)",
+                            loop_start - t0, loop_ms, tick * 1000)
 
             sleep_for = tick - (time.monotonic() - loop_start)
             if sleep_for > 0:
@@ -470,8 +571,12 @@ def main() -> None:
         "--retry", default=5.0, type=float, metavar="SECS",
         help="Seconds between connection retries when the sim is not running.",
     )
+    parser.add_argument(
+        "--diag", action="store_true",
+        help="Log STARTER/COMBUSTION transitions and ENGINES send times for lag debugging.",
+    )
     args = parser.parse_args()
-    run(args.ip, args.port, args.retry)
+    run(args.ip, args.port, args.retry, args.diag)
 
 
 if __name__ == "__main__":
