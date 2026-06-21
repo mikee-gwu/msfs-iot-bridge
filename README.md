@@ -10,7 +10,9 @@ Any device on the same LAN — an ESP32, a Raspberry Pi, a tablet, another PC �
 can listen on a single UDP port and react to flight events in real time,
 without any inbound firewall exceptions on the simulator PC, without a
 subscription handshake, and without combining multiple packets to derive a
-single value.
+single value. On modern gigabit networks the overhead is minimal, and cheap
+microcontrollers can easily listen for specific packet types without undue
+processing overhead.
 
 Packets are organised into **ten semantic groups**, each transmitted at a rate
 matched to how fast that data actually changes.  Every packet is a
@@ -84,12 +86,23 @@ Open `sim_broadcaster.py` and edit the constants near the top of the file.
 
 ### Update rates
 
+These are the default values — they are calibrated to the rate at which each
+data group actually changes in practice, and are reasonable for most use cases.
+Adjust them only if you have a specific reason (e.g. a slower IoT device that
+can't keep up, or a motion platform that needs higher fidelity).
+
 ```python
 INTERVALS: dict[str, float] = {
-    "DYNAMICS":    1 / 20,   # 20 Hz
-    "GEAR":        1 / 10,   # 10 Hz
-    ...
-    "STATIC":     10.0,      # 0.1 Hz
+    "DYNAMICS":    1 / 20,   # 20 Hz — attitude, G-load, body acceleration
+    "GEAR":        1 / 10,   # 10 Hz — gear position, wheel RPM, brakes
+    "SURFACES":    1 / 10,   # 10 Hz — flaps, spoilers, control surface deflection
+    "ENGINES":     1 / 10,   # 10 Hz — RPM, N1/N2, EGT, throttle, fuel flow
+    "POSITION":    1 /  5,   #  5 Hz — lat/lon/alt, airspeeds
+    "AUTOPILOT":   1 /  5,   #  5 Hz — AP modes and reference values
+    "ELECTRICAL":  1 /  2,   #  2 Hz — bus voltages, battery load
+    "ENVIRONMENT": 1.0,       #  1 Hz — wind, temperature, ambient pressure
+    "LIGHTS":      1.0,       #  1 Hz — light switch states
+    "STATIC":     10.0,       # 0.1 Hz — aircraft identity and config (rarely changes)
 }
 ```
 
