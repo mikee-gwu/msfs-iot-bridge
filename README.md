@@ -707,36 +707,62 @@ simultaneously.
 
 ---
 
-## Haptic Feedback (ESP32 Bass Shaker)
+## Modules
 
-The `modules/haptic/esp32/generator.py` script runs on an ESP32 microcontroller
-connected to a bass shaker (motion actuator) and listens for flight events via
-the UDP packets from `sim_broadcaster`.
+The `modules/` directory contains self-contained IoT receiver implementations
+that consume the UDP broadcast from `sim_broadcaster` and drive physical
+hardware.  Each module lives in its own subdirectory alongside any supporting
+files, firmware notes, and wiring diagrams.
 
-### Haptic feedback events
+| Path | Target | Purpose |
+|---|---|---|
+| `modules/haptic/esp32/` | ESP32 + bass shaker | Haptic feedback for engine events and landings |
 
-**Engine Startup** (`engine_start`)
-- **Trigger**: Starter engages on a cold engine (starter transitions 0→1, engine not running)
-- **Sequence**: Starter motor crank (uneven rumble) → ignition catch thuds → RPM climb → idle settle
-- **Duration**: ~2.3 seconds
-- **Feel**: Realistic multi-stage startup sequence from cold crank to smooth idle
+---
 
-**Engine Shutdown** (`engine_stop`)
-- **Trigger**: Engine transitions from running to off (combustion goes 1→0)
-- **Sequence**: Abrupt power loss thud → RPM wind-down → final prop spin fade
-- **Duration**: ~1.1 seconds
-- **Feel**: Power loss impact followed by descending pitch and intensity
+## Haptic Feedback Module — `modules/haptic/esp32/generator.py`
 
-**Landing Impact** (`landing_haptic`)
-- **Trigger**: Aircraft touches down (on_ground transitions 0→1) or lands with high impact during baseline phase
-- **Intensity scaling**: G-load and vertical speed determine impact severity
-  - Soft landing (< 0.2 intensity): single soft thud + gentle wheel-roll rumble
-  - Firm landing (0.2–0.55): double thuds + moderate runway vibration
-  - Hard landing (> 0.55): triple thuds + sustained heavy vibration
-- **Duration**: 0.5–1.5 seconds depending on landing severity
-- **Feel**: Intensity matches landing violence from smooth touchdown to hard impact
+### What it is
 
-### Hardware setup
+`modules/haptic/esp32/generator.py` is a MicroPython script that runs directly
+on an ESP32 microcontroller.  It connects to the local Wi-Fi network, listens
+for `ENGINES`, `GEAR`, and `DYNAMICS` UDP packets from `sim_broadcaster`, and
+drives a bass shaker (motion actuator) via PWM to produce physical haptic
+feedback that matches flight events in real time — engine starts, engine stops,
+and landings of varying severity.
+
+No PC-side software changes are required; the script is a pure UDP consumer.
+It runs autonomously on the ESP32 from power-on (as `main.py`) and needs no
+host connection once deployed.
+
+### Packets consumed
+
+| Packet | Fields used | Purpose |
+|---|---|---|
+| `ENGINES` | `starter_1`, `combustion_1` | Detect engine start / stop transitions |
+| `GEAR` | `on_ground` | Detect touchdown |
+| `DYNAMICS` | `g_force`, `vertical_speed_fpm` | Scale landing impact intensity |
+
+### Setup
+
+#### 1 — Wi-Fi credentials
+
+Create `secrets.py` alongside `generator.py` on the ESP32:
+
+```python
+SSID     = "YourNetworkName"
+PASSWORD = "YourPassword"
+```
+
+`generator.py` imports `SSID` and `PASSWORD` from this file at boot.
+
+#### 2 — Deploy to ESP32
+
+Upload both files to the ESP32 as `main.py` and `secrets.py`.  MicroPython
+automatically executes `main.py` on every boot, so the haptic receiver starts
+without any manual intervention.
+
+#### 3 — Wire the hardware
 
 ```
 ESP32 microcontroller
@@ -747,15 +773,53 @@ MOSFET gate (signal input)
     ↓
 Bass shaker / motion actuator
     ↓
-Ground (common with ESP32)
+Ground (common with ESP32, MOSFET, and external PSU)
 ```
+
+The PWM signal on GPIO 14 switches the MOSFET, which controls current from an
+external power supply through the bass shaker.  The ESP32 itself does not
+supply drive current to the shaker.
+
+### Haptic events
+
+**Engine Startup** (`engine_start`)
+- **Trigger**: Starter engages on a cold engine (`starter` transitions 0→1 while `combustion` is 0)
+- **Sequence**: Starter motor crank (uneven rumble) → ignition catch thuds → RPM climb → idle settle
+- **Duration**: ~2.3 seconds
+- **Feel**: Realistic multi-stage startup sequence from cold crank to smooth idle
+
+**Engine Shutdown** (`engine_stop`)
+- **Trigger**: Engine transitions from running to off (`combustion` goes 1→0)
+- **Sequence**: Abrupt power loss thud → RPM wind-down → final prop spin fade
+- **Duration**: ~1.1 seconds
+- **Feel**: Power loss impact followed by descending pitch and intensity
+
+**Landing Impact** (`landing_haptic`)
+- **Trigger**: Aircraft touches down (`on_ground` transitions 0→1), or high-impact contact
+  detected during the initial ground baseline (G > 1.2 or descent > 150 fpm)
+- **Cooldown**: 5 seconds between triggers to suppress bounce re-fires
+- **Intensity scaling**: The higher of two independent estimates drives output:
+  - G-load above 1 G: 1.0 G → 0.0 intensity, 2.5 G → 1.0
+  - Sink rate: 50 fpm → 0.0 intensity, 800 fpm → 1.0
+- **Intensity tiers**:
+  - Soft (< 0.2): single soft thud + gentle wheel-roll rumble
+  - Firm (0.2–0.55): double thuds + moderate runway vibration
+  - Hard (> 0.55): triple thuds + sustained heavy vibration
+- **Duration**: 0.5–1.5 seconds depending on landing severity
 
 ### Tuning
 
-Haptic parameters (frequency, duty cycle, durations, intensity curves) are
-defined in `generator.py` and can be adjusted to match your hardware response
-or personal preference. Key functions:
-- `engine_start()` — startup sequence timing and frequencies
-- `engine_stop()` — shutdown sequence
-- `landing_haptic(peak_g, touchdown_vs_fpm)` — impact scaling curves
-- `ramp()`, `roll()`, `thud()` — primitive haptic waveforms
+All haptic parameters — PWM frequency, duty cycle, segment durations, and
+intensity curves — are plain constants and function arguments in `generator.py`.
+No recompilation is needed; edit the file and re-upload.
+
+Key functions:
+
+| Function | Role |
+|---|---|
+| `engine_start()` | Full startup sequence: crank, ignition catches, RPM build, idle settle |
+| `engine_stop()` | Shutdown sequence: power-cut thud, RPM decay, prop fade |
+| `landing_haptic(peak_g, touchdown_vs_fpm)` | Intensity-scaled touchdown: thuds + runway roll-out |
+| `ramp(f0, f1, d0, d1, ms)` | Linearly sweep frequency and duty over time |
+| `roll(freq, duty, duration_ms)` | Sustained rumble with per-step random variation |
+| `thud(freq, duty, hold_ms, tail_ms)` | Single hard-attack impact with fast decay |
