@@ -135,24 +135,10 @@ Engines are 1-indexed in the field names (`combustion_1`, `n1_pct_2`, etc.).
 
 UDP provides no delivery guarantee.  On a switched gigabit LAN, loss is
 effectively zero under normal conditions.  For haptics and motion platforms
-this is fine: a dropped packet is simply a skipped frame.  If a receiver
-needs to detect a stale stream, compare consecutive `t` values — a gap larger
-than `2 × expected_interval` means packets are being dropped.
-
-### Timestamp field (`t`)
-
-Every packet carries a `t` field that is `time.monotonic()` on the
-broadcasting PC — a monotonically increasing float in **seconds** from an
-arbitrary epoch (the broadcaster's boot time, not Unix time).  Use it for:
-
-- **Staleness detection**: `now - packet["t"] > threshold` — but only if the
-  receiver's clock is synchronised to the broadcaster's via NTP or PTP.
-- **Delta timing**: subtract two consecutive `t` values to get the exact
-  inter-packet interval.
-
-Do **not** use `t` as a wall-clock timestamp.  For absolute time, use the
-`ENVIRONMENT` packet's `t` combined with an NTP-synchronised clock on the
-receiver, or add `ZULU_TIME` to the `ENVIRONMENT` builder if needed.
+this is fine: a dropped packet is simply a skipped frame.  Receivers that
+need to detect gaps can use receive-time: a gap larger than
+`2 × expected_interval` between consecutive packets of the same type means
+one was dropped.
 
 ### Subnet broadcast vs directed broadcast
 
@@ -165,12 +151,11 @@ network is segmented, use the subnet's directed broadcast address instead
 
 ## Packet protocol reference
 
-All packets share two mandatory fields:
+All packets share one mandatory field:
 
 | Field | Type | Description |
 |---|---|---|
 | `type` | `str` | Packet group name (e.g. `"DYNAMICS"`).  Filter on this. |
-| `t` | `float` | `time.monotonic()` on the broadcaster in seconds. |
 
 Field naming conventions used throughout:
 - Suffix `_rad` → radians
@@ -601,8 +586,7 @@ simultaneously.
 ### Adding a new packet group
 
 1. Add an entry to `INTERVALS` with the desired rate.
-2. Write a `build_mygroup(aq, t)` function returning a dict with `"type"` and
-   `"t"` fields.
+2. Write a `build_mygroup(aq)` function returning a dict with a `"type"` field.
 3. Add the lambda to the `builders` dict inside `run()`.
 
 ---

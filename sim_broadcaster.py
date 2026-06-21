@@ -150,11 +150,10 @@ def _build_engine_requests(sm: SimConnect) -> list[dict]:
 # Packet builders — one function per group
 # ---------------------------------------------------------------------------
 
-def build_dynamics(aq: AircraftRequests, t: float) -> dict:
+def build_dynamics(aq: AircraftRequests) -> dict:
     """20 Hz — attitude, rotation, acceleration, G-load, stall/overspeed."""
     return {
         "type":               "DYNAMICS",
-        "t":                  t,
         "pitch_rad":          _f(aq, "PLANE_PITCH_DEGREES"),
         "bank_rad":           _f(aq, "PLANE_BANK_DEGREES"),
         "heading_mag_rad":    _f(aq, "PLANE_HEADING_DEGREES_MAGNETIC"),
@@ -173,11 +172,10 @@ def build_dynamics(aq: AircraftRequests, t: float) -> dict:
     }
 
 
-def build_gear(aq: AircraftRequests, t: float) -> dict:
+def build_gear(aq: AircraftRequests) -> dict:
     """10 Hz — gear position, wheel RPM, brakes, ground contact."""
     return {
         "type":                "GEAR",
-        "t":                   t,
         "on_ground":           _i(aq, "SIM_ON_GROUND"),
         "gear_handle":         _i(aq, "GEAR_HANDLE_POSITION"),
         "gear_total_pct":      _f(aq, "GEAR_TOTAL_PCT_EXTENDED"),
@@ -196,11 +194,10 @@ def build_gear(aq: AircraftRequests, t: float) -> dict:
     }
 
 
-def build_surfaces(aq: AircraftRequests, t: float) -> dict:
+def build_surfaces(aq: AircraftRequests) -> dict:
     """10 Hz — flaps, spoilers, control surface positions and trims."""
     return {
         "type":                "SURFACES",
-        "t":                   t,
         "flaps_handle_index":  _i(aq, "FLAPS_HANDLE_INDEX"),
         "flaps_handle_pct":    _f(aq, "FLAPS_HANDLE_PERCENT"),
         "te_flaps_left_pct":   _f(aq, "TRAILING_EDGE_FLAPS_LEFT_PERCENT"),
@@ -220,12 +217,11 @@ def build_surfaces(aq: AircraftRequests, t: float) -> dict:
     }
 
 
-def build_engines(aq: AircraftRequests, eng_reqs: list[dict], t: float) -> dict:
+def build_engines(aq: AircraftRequests, eng_reqs: list[dict]) -> dict:
     """10 Hz — per-engine RPM, N1/N2, EGT, throttle, fuel flow. Always
     contains four engine slots; use num_engines to know how many are valid."""
     packet: dict = {
         "type":        "ENGINES",
-        "t":           t,
         "num_engines": _i(aq, "NUMBER_OF_ENGINES"),
         "engine_type": _i(aq, "ENGINE_TYPE"),
     }
@@ -243,11 +239,10 @@ def build_engines(aq: AircraftRequests, eng_reqs: list[dict], t: float) -> dict:
     return packet
 
 
-def build_position(aq: AircraftRequests, t: float) -> dict:
+def build_position(aq: AircraftRequests) -> dict:
     """5 Hz — geographic position, altitude, airspeeds, magnetic variation."""
     return {
         "type":                  "POSITION",
-        "t":                     t,
         "lat_deg":               _f(aq, "PLANE_LATITUDE"),
         "lon_deg":               _f(aq, "PLANE_LONGITUDE"),
         "altitude_ft":           _f(aq, "PLANE_ALTITUDE"),
@@ -262,11 +257,10 @@ def build_position(aq: AircraftRequests, t: float) -> dict:
     }
 
 
-def build_autopilot(aq: AircraftRequests, t: float) -> dict:
+def build_autopilot(aq: AircraftRequests) -> dict:
     """5 Hz — autopilot mode flags and reference values."""
     return {
         "type":                  "AUTOPILOT",
-        "t":                     t,
         "ap_master":             _i(aq, "AUTOPILOT_MASTER"),
         "wing_leveler":          _i(aq, "AUTOPILOT_WING_LEVELER"),
         "nav1_lock":             _i(aq, "AUTOPILOT_NAV1_LOCK"),
@@ -292,11 +286,10 @@ def build_autopilot(aq: AircraftRequests, t: float) -> dict:
     }
 
 
-def build_electrical(aq: AircraftRequests, t: float) -> dict:
+def build_electrical(aq: AircraftRequests) -> dict:
     """2 Hz — electrical bus voltages, current draw, switch states."""
     return {
         "type":                "ELECTRICAL",
-        "t":                   t,
         "master_battery":      _i(aq, "ELECTRICAL_MASTER_BATTERY"),
         "avionics_master":     _i(aq, "AVIONICS_MASTER_SWITCH"),
         "main_bus_voltage":    _f(aq, "ELECTRICAL_MAIN_BUS_VOLTAGE"),
@@ -308,11 +301,10 @@ def build_electrical(aq: AircraftRequests, t: float) -> dict:
     }
 
 
-def build_environment(aq: AircraftRequests, t: float) -> dict:
+def build_environment(aq: AircraftRequests) -> dict:
     """1 Hz — ambient weather, wind, pressure, precipitation."""
     return {
         "type":                   "ENVIRONMENT",
-        "t":                      t,
         "ambient_temp_c":         _f(aq, "AMBIENT_TEMPERATURE"),
         "ambient_pressure_inhg":  _f(aq, "AMBIENT_PRESSURE"),
         "wind_velocity_kt":       _f(aq, "AMBIENT_WIND_VELOCITY"),
@@ -329,11 +321,10 @@ def build_environment(aq: AircraftRequests, t: float) -> dict:
     }
 
 
-def build_lights(aq: AircraftRequests, t: float) -> dict:
+def build_lights(aq: AircraftRequests) -> dict:
     """1 Hz — individual light switch states plus the combined bitmask."""
     return {
         "type":              "LIGHTS",
-        "t":                 t,
         "light_states_mask": _i(aq, "LIGHT_STATES"),
         "strobe":            _i(aq, "LIGHT_STROBE"),
         "landing":           _i(aq, "LIGHT_LANDING"),
@@ -347,11 +338,10 @@ def build_lights(aq: AircraftRequests, t: float) -> dict:
     }
 
 
-def build_static(aq: AircraftRequests, t: float) -> dict:
+def build_static(aq: AircraftRequests) -> dict:
     """0.1 Hz — aircraft identity and design parameters (rarely changes)."""
     return {
         "type":                     "STATIC",
-        "t":                        t,
         "title":                    _s(aq, "TITLE"),
         "atc_type":                 _s(aq, "ATC_TYPE"),
         "atc_model":                _s(aq, "ATC_MODEL"),
@@ -419,16 +409,16 @@ def run(ip: str, port: int, retry_interval: float = 5.0) -> None:
         log.info("  %-12s  %4.1f Hz", ptype, 1.0 / interval)
 
     builders = {
-        "DYNAMICS":    lambda t: build_dynamics(aq, t),
-        "GEAR":        lambda t: build_gear(aq, t),
-        "SURFACES":    lambda t: build_surfaces(aq, t),
-        "ENGINES":     lambda t: build_engines(aq, eng_reqs, t),
-        "POSITION":    lambda t: build_position(aq, t),
-        "AUTOPILOT":   lambda t: build_autopilot(aq, t),
-        "ELECTRICAL":  lambda t: build_electrical(aq, t),
-        "ENVIRONMENT": lambda t: build_environment(aq, t),
-        "LIGHTS":      lambda t: build_lights(aq, t),
-        "STATIC":      lambda t: build_static(aq, t),
+        "DYNAMICS":    lambda: build_dynamics(aq),
+        "GEAR":        lambda: build_gear(aq),
+        "SURFACES":    lambda: build_surfaces(aq),
+        "ENGINES":     lambda: build_engines(aq, eng_reqs),
+        "POSITION":    lambda: build_position(aq),
+        "AUTOPILOT":   lambda: build_autopilot(aq),
+        "ELECTRICAL":  lambda: build_electrical(aq),
+        "ENVIRONMENT": lambda: build_environment(aq),
+        "LIGHTS":      lambda: build_lights(aq),
+        "STATIC":      lambda: build_static(aq),
     }
 
     last_sent  = {ptype: 0.0 for ptype in INTERVALS}
@@ -442,7 +432,7 @@ def run(ip: str, port: int, retry_interval: float = 5.0) -> None:
 
             for ptype, interval in INTERVALS.items():
                 if loop_start - last_sent[ptype] >= interval:
-                    _send(sock, addr, builders[ptype](loop_start))
+                    _send(sock, addr, builders[ptype]())
                     last_sent[ptype] = loop_start
                     total_sent += 1
 
