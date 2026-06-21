@@ -390,9 +390,23 @@ def _send(sock: socket.socket, addr: tuple, packet: dict) -> None:
 # Main broadcast loop
 # ---------------------------------------------------------------------------
 
-def run(ip: str, port: int) -> None:
-    log.info("Connecting to SimConnect ...")
-    sm = SimConnect()
+def run(ip: str, port: int, retry_interval: float = 5.0) -> None:
+    sm = None
+    while sm is None:
+        log.info("Connecting to SimConnect ...")
+        try:
+            sm = SimConnect()
+        except ConnectionError:
+            log.warning(
+                "Flight Simulator not found. Retrying in %.0f s ... (Ctrl+C to quit)",
+                retry_interval,
+            )
+            try:
+                time.sleep(retry_interval)
+            except KeyboardInterrupt:
+                log.info("Cancelled.")
+                return
+
     aq = AircraftRequests(sm, _time=SIM_CACHE_MS)
     eng_reqs = _build_engine_requests(sm)
     log.info("SimConnect ready.")
@@ -460,8 +474,12 @@ def main() -> None:
         "--port", default=DEFAULT_PORT, type=int,
         help="UDP destination port.",
     )
+    parser.add_argument(
+        "--retry", default=5.0, type=float, metavar="SECS",
+        help="Seconds between connection retries when the sim is not running.",
+    )
     args = parser.parse_args()
-    run(args.ip, args.port)
+    run(args.ip, args.port, args.retry)
 
 
 if __name__ == "__main__":
