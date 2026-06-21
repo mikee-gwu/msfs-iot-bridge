@@ -39,10 +39,74 @@ Total broadcast bandwidth across all groups: **≈ 251 Kbps** (0.25 Mbps).
 
 ---
 
+## Quick start
+
+### 1 — Create a virtual environment and install dependencies
+
+Open a terminal in the project folder and run:
+
+```bat
+python -m venv venv
+venv\Scripts\activate
+pip install SimConnect
+```
+
+> On first activation you will see `(venv)` prepended to your prompt.
+> Run `venv\Scripts\activate` again in any new terminal you open.
+
+### 2 — Start Microsoft Flight Simulator
+
+Launch MSFS 2020 or 2024 and load any flight — the main menu is enough, but
+data only begins flowing once a flight (or mission) is active and a world is
+loaded.  SimConnect connects to the running sim process; the broadcaster will
+retry automatically if the sim is not ready yet.
+
+### 3 — Run the broadcaster
+
+With the venv active and the sim running:
+
+```bat
+python sim_broadcaster.py
+```
+
+You should see output like:
+
+```
+SimConnect connected.
+Broadcasting on 255.255.255.255:49000
+```
+
+The script keeps running until you press **Ctrl+C**.  UDP packets start
+flowing immediately — no handshake, no pairing required.
+
+### 4 — Verify packets with Wireshark
+
+[Wireshark](https://www.wireshark.org/) lets you inspect the raw packets on
+the wire without writing any receiver code.
+
+1. **Open Wireshark** and select your active network adapter (usually
+   labelled "Wi-Fi" or "Ethernet").
+2. **Enter this display filter** in the filter bar and press Enter:
+
+   ```
+   udp.port == 49000
+   ```
+
+3. Packets will appear immediately.  Click any row to expand it; the JSON
+   payload is visible in the "Data" section of the packet detail pane.
+
+   If you changed the default port with `--port`, substitute that number in
+   the filter (e.g. `udp.port == 49001`).
+
+**Tip:** Use `Edit → Find Packet` (Ctrl+F) and search in "Packet bytes" for
+`"DYNAMICS"` or `"GEAR"` to jump straight to a specific packet type.
+
+---
+
 ## Requirements
 
 - Windows 10/11
-- Microsoft Flight Simulator 2020 or 2024 **or** Lockheed Martin Prepar3D v4+
+- Microsoft Flight Simulator 2020 or 2024
 - Python 3.10 or later
 - [`SimConnect`](https://pypi.org/project/SimConnect/) Python library
 
