@@ -42,10 +42,8 @@ from secrets import SSID, PASSWORD
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 wlan.connect(SSID, PASSWORD)
-print("Connecting to WiFi...")
 while not wlan.isconnected():
     utime.sleep_ms(200)
-print("WiFi connected:", wlan.ifconfig()[0])
 
 pwm = PWM(Pin(PIN), freq=30, duty=0)
 
@@ -139,9 +137,6 @@ def landing_haptic(peak_g, touchdown_vs_fpm):
     roll_duty   = int(180 + intensity * 520)
     roll_dur    = int(120 + intensity * 430)
 
-    print("Landing: G {:.2f}  VS {:.0f} fpm  intensity {:.2f}".format(
-        peak_g, touchdown_vs_fpm, intensity))
-
     # Primary impact
     thud(30, impact_duty, impact_hold, impact_tail)
 
@@ -177,15 +172,11 @@ last_g_force    = 1.0
 last_vs_fpm     = 0.0
 last_landing_ms = 0     # 0 = no landing yet; first touchdown always fires
 baseline_set    = False
-print("Listening on UDP port", UDP_PORT)
-
 pkt_count = 0
 while True:
     try:
         data, _ = sock.recvfrom(2048)
         pkt_count += 1
-        if pkt_count % 10 == 0:
-            print(f"[{pkt_count} packets]")
     except OSError:
         continue
 
@@ -195,7 +186,6 @@ while True:
         continue
 
     ptype = packet.get("type")
-    print(f"Packet: {ptype}")
 
     if ptype == "DYNAMICS":
         last_g_force = float(packet.get("g_force",            1.0))
@@ -204,29 +194,24 @@ while True:
     elif ptype == "GEAR":
         try:
             on_ground = bool(packet.get("on_ground", 0))
-            print(f"GEAR packet received: on_ground={on_ground}, prev_on_ground={prev_on_ground}")
             if prev_on_ground is None:
-                # First packet: establish baseline without triggering
                 prev_on_ground = on_ground
-                print(f"  → GEAR baseline set to {on_ground}")
             elif not prev_on_ground and on_ground:
-                # Normal landing: transitioned from air to ground
-                print(f"Landing detected! G={last_g_force:.2f}  VS={last_vs_fpm:.0f} fpm")
                 now = utime.ticks_ms()
                 if last_landing_ms == 0 or utime.ticks_diff(now, last_landing_ms) > LANDING_COOLDOWN_MS:
-                    print("  → Triggering landing haptic")
+                    print(f"TRIGGER landing_haptic: on_ground {prev_on_ground}→{on_ground}  G={last_g_force:.2f}  VS={last_vs_fpm:.0f} fpm")
                     landing_haptic(last_g_force, last_vs_fpm)
                     last_landing_ms = utime.ticks_ms()
                 else:
-                    print(f"  → Suppressed (cooldown active)")
+                    print(f"SUPPRESSED landing_haptic: cooldown  G={last_g_force:.2f}  VS={last_vs_fpm:.0f} fpm")
             elif on_ground and not baseline_set and (last_g_force > 1.2 or abs(last_vs_fpm) > 150):
-                # First contact with ground showing impact signature (baseline still being established)
-                print(f"Impact on ground during baseline! G={last_g_force:.2f}  VS={last_vs_fpm:.0f} fpm")
                 now = utime.ticks_ms()
                 if last_landing_ms == 0 or utime.ticks_diff(now, last_landing_ms) > LANDING_COOLDOWN_MS:
-                    print("  → Triggering landing haptic")
+                    print(f"TRIGGER landing_haptic (impact baseline): G={last_g_force:.2f}  VS={last_vs_fpm:.0f} fpm")
                     landing_haptic(last_g_force, last_vs_fpm)
                     last_landing_ms = utime.ticks_ms()
+                else:
+                    print(f"SUPPRESSED landing_haptic (impact baseline): cooldown  G={last_g_force:.2f}  VS={last_vs_fpm:.0f} fpm")
                 baseline_set = True
             elif on_ground:
                 baseline_set = True
@@ -237,7 +222,6 @@ while True:
     elif ptype == "ENGINES":
         starter    = bool(packet.get("starter_1",    0))
         combustion = bool(packet.get("combustion_1", 0))
-
         if prev_starter is None:
             # First packet: establish baseline without triggering
             prev_starter    = starter
@@ -245,11 +229,11 @@ while True:
             continue
 
         if starter and not prev_starter and not prev_combustion:
-            print("Starter engaged — haptic")
+            print(f"TRIGGER engine_start: starter {prev_starter}→{starter}  combustion_prev={prev_combustion}")
             engine_start()
 
         elif not combustion and prev_combustion:
-            print("Engine stopped — haptic")
+            print(f"TRIGGER engine_stop: combustion {prev_combustion}→{combustion}  starter={starter}")
             engine_stop()
 
         prev_starter    = starter
