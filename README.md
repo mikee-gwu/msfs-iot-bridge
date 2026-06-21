@@ -343,6 +343,7 @@ slots are zero.
 | `num_engines` | int | — | Number of engines on this aircraft (1–4) |
 | `engine_type` | int | enum | 0=Piston, 1=Jet, 2=None, 3=Helo turbine, 5=Turboprop |
 | `combustion_N` | int | 0/1 | 1 = engine N is running |
+| `starter_N` | int | 0/1 | 1 = starter motor engaged (fires before combustion on start) |
 | `throttle_pct_N` | float | 0–100 | Throttle lever position percent |
 | `rpm_N` | float | RPM | Engine RPM (all types) |
 | `n1_pct_N` | float | % | Turbine N1 (0 for piston engines) |

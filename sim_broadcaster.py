@@ -39,7 +39,7 @@ from SimConnect.RequestList import Request
 DEFAULT_IP   = "255.255.255.255"   # subnet broadcast; use a specific IP for unicast
 DEFAULT_PORT = 49000
 NUM_ENGINES  = 4                   # max engines polled per ENGINES packet (1–4)
-SIM_CACHE_MS = 50                  # SimConnect request cache lifetime in ms
+SIM_CACHE_MS = 50                    # SimConnect request cache lifetime in ms
 
 # Send interval in seconds for each packet group.
 # The main loop runs at the DYNAMICS rate; all other groups are gated by
@@ -134,6 +134,7 @@ def _build_engine_requests(sm: SimConnect) -> list[dict]:
         idx = str(n).encode()
         reqs.append({
             "combustion": Request((b"GENERAL ENG COMBUSTION:"               + idx, b"Bool"),            sm, _time=SIM_CACHE_MS),
+            "starter":    Request((b"GENERAL ENG STARTER:"                  + idx, b"Bool"),            sm, _time=SIM_CACHE_MS),
             "throttle":   Request((b"GENERAL ENG THROTTLE LEVER POSITION:"  + idx, b"Percent"),         sm, _time=SIM_CACHE_MS),
             "rpm":        Request((b"GENERAL ENG RPM:"                       + idx, b"Rpm"),             sm, _time=SIM_CACHE_MS),
             "n1":         Request((b"TURB ENG N1:"                           + idx, b"Percent"),         sm, _time=SIM_CACHE_MS),
@@ -228,6 +229,7 @@ def build_engines(aq: AircraftRequests, eng_reqs: list[dict]) -> dict:
     for i, eng in enumerate(eng_reqs, start=1):
         s = f"_{i}"
         packet[f"combustion{s}"]    = int(_rv(eng["combustion"]))
+        packet[f"starter{s}"]       = int(_rv(eng["starter"]))
         packet[f"throttle_pct{s}"]  = _rv(eng["throttle"])
         packet[f"rpm{s}"]           = _rv(eng["rpm"])
         packet[f"n1_pct{s}"]        = _rv(eng["n1"])
