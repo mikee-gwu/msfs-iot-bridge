@@ -704,3 +704,58 @@ simultaneously.
 **`ENGINES` packet is missing fields for engines 3 and 4**
 > Only `num_engines` engines are active; slots for inactive engines contain
 > zeros.  This is normal.
+
+---
+
+## Haptic Feedback (ESP32 Bass Shaker)
+
+The `modules/haptic/esp32/generator.py` script runs on an ESP32 microcontroller
+connected to a bass shaker (motion actuator) and listens for flight events via
+the UDP packets from `sim_broadcaster`.
+
+### Haptic feedback events
+
+**Engine Startup** (`engine_start`)
+- **Trigger**: Starter engages on a cold engine (starter transitions 0→1, engine not running)
+- **Sequence**: Starter motor crank (uneven rumble) → ignition catch thuds → RPM climb → idle settle
+- **Duration**: ~2.3 seconds
+- **Feel**: Realistic multi-stage startup sequence from cold crank to smooth idle
+
+**Engine Shutdown** (`engine_stop`)
+- **Trigger**: Engine transitions from running to off (combustion goes 1→0)
+- **Sequence**: Abrupt power loss thud → RPM wind-down → final prop spin fade
+- **Duration**: ~1.1 seconds
+- **Feel**: Power loss impact followed by descending pitch and intensity
+
+**Landing Impact** (`landing_haptic`)
+- **Trigger**: Aircraft touches down (on_ground transitions 0→1) or lands with high impact during baseline phase
+- **Intensity scaling**: G-load and vertical speed determine impact severity
+  - Soft landing (< 0.2 intensity): single soft thud + gentle wheel-roll rumble
+  - Firm landing (0.2–0.55): double thuds + moderate runway vibration
+  - Hard landing (> 0.55): triple thuds + sustained heavy vibration
+- **Duration**: 0.5–1.5 seconds depending on landing severity
+- **Feel**: Intensity matches landing violence from smooth touchdown to hard impact
+
+### Hardware setup
+
+```
+ESP32 microcontroller
+    ↓ GPIO14 (PWM output)
+    ↓
+MOSFET gate (signal input)
+    ↓ drain
+    ↓
+Bass shaker / motion actuator
+    ↓
+Ground (common with ESP32)
+```
+
+### Tuning
+
+Haptic parameters (frequency, duty cycle, durations, intensity curves) are
+defined in `generator.py` and can be adjusted to match your hardware response
+or personal preference. Key functions:
+- `engine_start()` — startup sequence timing and frequencies
+- `engine_stop()` — shutdown sequence
+- `landing_haptic(peak_g, touchdown_vs_fpm)` — impact scaling curves
+- `ramp()`, `roll()`, `thud()` — primitive haptic waveforms

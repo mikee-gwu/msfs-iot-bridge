@@ -1,9 +1,23 @@
-# engine_start.py — MicroPython script for ESP32
+# generator.py — MicroPython script for ESP32
 #
-# Listens for MSFS ENGINES, GEAR, and DYNAMICS UDP packets from
-# sim_broadcaster and plays haptic sequences on:
-#   • engine state transitions (off→on and on→off)
-#   • touchdown, with intensity scaled to landing severity
+# Listens for MSFS ENGINES, GEAR, and DYNAMICS UDP packets from sim_broadcaster
+# and plays haptic feedback sequences on:
+#
+#   ENGINE STARTUP (engine_start):
+#     Triggered when: Starter engages while engine is off (starter 0→1, prev_combustion=0)
+#     Sequence: Starter crank rumble → ignition thuds → RPM climb → idle settle
+#     Duration: ~2.3 seconds
+#
+#   ENGINE SHUTDOWN (engine_stop):
+#     Triggered when: Engine transitions from running to off (combustion 1→0)
+#     Sequence: Power loss thud → RPM decay → final prop spin fade
+#     Duration: ~1.1 seconds
+#
+#   LANDING IMPACT (landing_haptic):
+#     Triggered when: Aircraft transitions from airborne to on ground (on_ground 0→1)
+#                  OR lands with impact during baseline phase (G > 1.2 or descent > 150 fpm)
+#     Intensity scaled to: G-load and vertical speed (soft greaser → firm landing → hard impact)
+#     Duration: 0.5–1.5 seconds depending on intensity
 #
 # Hardware:
 #   ESP32 GPIO14 → MOSFET SIG
