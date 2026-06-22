@@ -1,10 +1,24 @@
-# sim_broadcaster
+# MSFS IoT Bridge
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Polls Microsoft Flight Simulator (MSFS 2020 / 2024) or Prepar3D via
-SimConnect and broadcasts live flight state as typed UDP JSON packets on the
-local network subnet.
+A DIY-friendly bridge between Microsoft Flight Simulator (MSFS 2020 / 2024)
+and autonomous IoT hardware.  Polls live flight state via SimConnect and
+broadcasts it as typed UDP JSON packets on the local network — no broker, no
+firewall holes, no cloud dependency.  Any WiFi-capable device on the same LAN
+can listen and react independently: ESP32s, Raspberry Pi Zeros, Pico Ws,
+Arduinos, or anything else with a radio.
+
+### What you can build
+
+- **Haptic feedback seats** — feel engine starts, landings, and G-forces through a bass shaker
+- **Home cockpit panels** — drive physical switches, lights, and gauges from real sim state
+- **Motion platforms** — feed attitude and G-load to seat actuators or motion rigs
+- **Custom annunciators** — light up stall warnings, gear unsafe, and autopilot modes on real hardware
+- **Moving-map displays** — drive a Pi Zero or tablet with live lat/lon/altitude
+- **Environmental effects** — trigger fans, rumble motors, or LEDs based on speed, weather, or impacts
+
+No PC-side changes needed for new devices — just bind the UDP port and start receiving.
 
 ## Overview
 
