@@ -1,5 +1,7 @@
 # sim_broadcaster
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Polls Microsoft Flight Simulator (MSFS 2020 / 2024) or Prepar3D via
 SimConnect and broadcasts live flight state as typed UDP JSON packets on the
 local network subnet.
