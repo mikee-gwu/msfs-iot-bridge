@@ -9,7 +9,7 @@ firewall holes, no cloud dependency.  Any WiFi-capable device on the same LAN
 can listen and react independently: ESP32s, Raspberry Pi Zeros, Pico Ws,
 Arduinos, or anything else with a radio.
 
-### What you can build
+## What you can build
 
 - **Haptic feedback seats** — feel engine starts, landings, and G-forces through a bass shaker
 - **Home cockpit panels** — drive physical switches, lights, and gauges from real sim state
@@ -64,7 +64,7 @@ Open a terminal in the project folder and run:
 ```bat
 python -m venv venv
 venv\Scripts\activate
-pip install SimConnect
+pip install -r requirements.txt
 ```
 
 > On first activation you will see `(venv)` prepended to your prompt.
@@ -127,7 +127,7 @@ the wire without writing any receiver code.
 - [`SimConnect`](https://pypi.org/project/SimConnect/) Python library
 
 ```
-pip install SimConnect
+pip install -r requirements.txt
 ```
 
 The simulator must be **running** before `sim_broadcaster.py` is started.
@@ -720,6 +720,20 @@ simultaneously.
 **`ENGINES` packet is missing fields for engines 3 and 4**
 > Only `num_engines` engines are active; slots for inactive engines contain
 > zeros.  This is normal.
+
+---
+
+## Tools
+
+The `tools/` directory contains standalone diagnostic scripts for use alongside
+`sim_broadcaster` during development and debugging.
+
+| Script | Purpose |
+|---|---|
+| `tools/capture_gear.py` | Listen on UDP and print incoming `GEAR` packets — no SimConnect needed |
+| `tools/engine_diag.py` | Connect to SimConnect directly and log engine start/stop transitions in real time |
+
+See [`tools/README.md`](tools/README.md) for usage details.
 
 ---
 

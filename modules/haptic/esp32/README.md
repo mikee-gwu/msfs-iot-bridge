@@ -92,13 +92,6 @@ average power is comfortably under that ceiling.
 
 ## Wiring
 
-The IRF520 MOSFET module acts as a low-side switch: GPIO14 drives the gate, the shaker
-sits between PSU+ and the drain, and the source ties to common ground. When the GPIO
-goes high the FET opens and current flows through the shaker; duty cycle and frequency
-give you control over intensity and vibration rate.
-
-## Wiring
-
 The IRF520 MOSFET module acts as a **low-side switch**. The ESP32 never powers the
 shaker directly; it only controls the MOSFET gate using PWM on GPIO14.
 
@@ -197,13 +190,9 @@ When the MOSFET is OFF, current flow stops and the shaker becomes inactive.
 * The Douk Audio BS-1 is approximately 8Ω. At 20V it can draw about 2.5A at 100% duty cycle (roughly 50W peak).
 * The haptic effects typically operate well below continuous full power because PWM duty cycle varies throughout each sequence.
 
-```
+## Wi-Fi credentials
 
-
-
-## secrets.py
-
-Create this file on the device (not in the repo — it's gitignored):
+Create `secrets.py` on the device (not in the repo — it's gitignored):
 
 ```python
 SSID     = "YourNetworkName"
