@@ -20,6 +20,43 @@ Arduinos, or anything else with a radio.
 
 No PC-side changes needed for new devices — just bind the UDP port and start receiving.
 
+## The distributed peripherals model
+
+The design is intentionally asymmetric: one broadcaster, many listeners, each
+listener completely independent of every other.
+
+Rather than building a single complex controller that handles everything —
+gear lights, flap indicators, haptic feedback, airspeed displays — the
+approach is to scatter the cheapest WiFi-capable microcontrollers you can
+find and give each one exactly one job.  An ESP32 costs under $5.  A
+Raspberry Pi Pico W costs $6.  Each runs a handful of lines of MicroPython,
+watches the one or two packet types it cares about, and discards the rest in
+a single string comparison.
+
+A few consequences of this architecture that matter in practice:
+
+**No central hub, no single point of failure.**  Each device boots, joins the
+network, and starts receiving independently.  If the haptic seat reboots
+mid-flight, it comes back on its own.  No other device notices.
+
+**Adding a device costs nothing on the broadcaster side.**  The PC sends one
+packet per group per interval regardless of how many microcontrollers are
+listening.  Plugging in a tenth ESP32 has no measurable effect on CPU or
+network load.
+
+**Fault isolation is structural, not designed.**  A gear-light panel that
+crashes doesn't affect the airspeed indicator.  A firmware bug in a new
+flap-position servo doesn't interrupt haptic feedback.  The broadcast is the
+only shared surface; everything downstream is air-gapped by design.
+
+**The unit economics are brutal in your favour.**  Basic haptic peripheral:
+~$3 ESP32 + $2 vibration motor + $2 MOSFET = $7 total.  Three-light gear
+indicator: ~$3 ESP32 + $1 in LEDs = $4.  A full simpit peripheral ring costs
+less than a single commercial USB device with worse latency.
+
+This is the Unix philosophy applied to a flight deck: each process does one
+thing, does it well, and talks over a shared pipe.
+
 ## Overview
 
 Any device on the same LAN — an ESP32, a Raspberry Pi, a tablet, another PC —
@@ -853,3 +890,42 @@ Key functions:
 | `ramp(f0, f1, d0, d1, ms)` | Linearly sweep frequency and duty over time |
 | `roll(freq, duty, duration_ms)` | Sustained rumble with per-step random variation |
 | `thud(freq, duty, hold_ms, tail_ms)` | Single hard-attack impact with fast decay |
+
+---
+
+## Community — build something and share it
+
+The `modules/` directory is designed to grow.  The haptic seat is one starting
+point; the ten broadcast channels carry enough data to drive dozens of
+independent devices simultaneously.
+
+### Project ideas
+
+| Idea | Packets | Key fields |
+|---|---|---|
+| Flap position indicator (LED bar or servo) | `SURFACES` | `te_flaps_left_pct`, `flaps_handle_index` |
+| Annunciator panel (stall, overspeed, gear unsafe) | `DYNAMICS`, `GEAR` | `stall_warning`, `overspeed_warning`, `gear_speed_exceeded` |
+| G-force meter | `DYNAMICS` | `g_force` |
+| Autopilot status board | `AUTOPILOT` | Mode flags, selected heading / altitude / VS |
+| Airspeed indicator | `POSITION` | `airspeed_indicated_kt`, `airspeed_mach` |
+| Engine tachometer display | `ENGINES` | `rpm_N`, `n1_pct_N` |
+| Gear indicator lights (three-light panel) | `GEAR` | `gear_left_pct`, `gear_center_pct`, `gear_right_pct` |
+| External light-state panel | `LIGHTS` | Individual light booleans |
+| Moving-map display | `POSITION` | `lat_deg`, `lon_deg`, `altitude_ft` |
+| Weather / environment display | `ENVIRONMENT` | Wind, OAT, pressure |
+
+### Contributing a module
+
+1. Fork the repo.
+2. Create `modules/<name>/<platform>/` — e.g. `modules/gear-lights/esp32/`.
+3. Follow the pattern from `modules/haptic/esp32/`: `main.py` + `secrets.py` +
+   a short `README.md` covering wiring and tuning.
+4. Open a pull request.
+
+### Show and tell
+
+> Built something?  Open a PR to add a row.
+
+| Project | Hardware | Description | Author |
+|---|---|---|---|
+| [Haptic feedback seat](modules/haptic/esp32/) | ESP32 + bass shaker | Engine start/stop and landing haptics | (this repo) |
