@@ -729,9 +729,8 @@ simultaneously.
 > environment you are using to run the script.
 
 **`Exception: SimConnect: connection failed`**
-> The simulator is not running, or SimConnect is disabled.  Start MSFS / P3D
-> before running the broadcaster.  For P3D, ensure SimConnect is enabled in
-> the add-on XML configuration.
+> The simulator is not running, or SimConnect is disabled.  Start MSFS
+> before running the broadcaster.
 
 **No packets received on the IoT device**
 > 1. Confirm both machines are on the same subnet and that no managed switch
