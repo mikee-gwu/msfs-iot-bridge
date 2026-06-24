@@ -9,6 +9,9 @@ firewall holes, no cloud dependency.  Any WiFi-capable device on the same LAN
 can listen and react independently: ESP32s, Raspberry Pi Zeros, Pico Ws,
 Arduinos, or anything else with a radio.
 
+## Additional Background on this project
+https://www.linkedin.com/posts/michaeljjellis_flightsim-msfs-simpit-share-7474967119386923010-Pm7j/
+
 ## What you can build
 
 - **Haptic feedback seats** — feel engine starts, landings, and G-forces through a bass shaker
